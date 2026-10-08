@@ -34,8 +34,16 @@ code,pre{font:13px/1.6 ui-monospace,Menlo,monospace}code{background:#f4f4f4;padd
 <li>The recipe stays at LR 3e-5, selector loss weight 0.1, and seed 42. Teacher, sampler, verifier, cache, and budgets stay fixed.</li>
 </ul>
 <p>The model receives four research questions: local token interactions, nonlinear correction, complementary compositions, and inference efficiency. These questions do not prescribe a parameter sequence.</p>
-<p id="live-status">Four lane agents now start native AIRA-dojo Greedy controllers. Each lane has four attempts and the same 24-hour maximum deadline.</p>
+<p id="live-status">All four native AIRA-dojo Greedy controllers remain active. Their first model-chosen proposals each completed 32 real updates on GPUs3–6.</p>
 <p>Read the <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/reports/search-launch.json">launch contract</a>, <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/protected/policy.json">versioned policy</a>, and <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/runs/aira-architecture-20261008">native lane records</a>. The shared deadline is epoch <code>1791569465.625282</code>.</p>
+<p>Each lane has four attempts and the same 24-hour maximum deadline. The first serving evaluators continue; no first-search fitness is reported here.</p>
+<div class="scroll"><table><thead><tr><th>Native focus</th><th>Controller PID</th><th>First GPU</th><th>Actual model proposal</th><th>Updates</th><th>Evidence</th></tr></thead><tbody>
+<tr><td>Local token interactions</td><td>2792830</td><td>6</td><td>Attention0 taps[0,1,2,4], group16; selector256</td><td>32</td><td><a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/runs/aira-architecture-20261008/local_mixing/trial-0001/training/readiness.json">Native update receipt</a></td></tr>
+<tr><td>Nonlinear correction</td><td>2792945</td><td>3</td><td>Ungated rank128 corrector at layer3; selector256</td><td>32</td><td><a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/runs/aira-architecture-20261008/nonlinear_correction/trial-0001/training/readiness.json">Native update receipt</a></td></tr>
+<tr><td>Complementary composition</td><td>2792595</td><td>4</td><td>Attention1 taps[0,1,2], group8; ungated rank32 corrector4; selector256</td><td>32</td><td><a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/runs/aira-architecture-20261008/composition/trial-0001/training/readiness.json">Native update receipt</a></td></tr>
+<tr><td>Inference efficiency</td><td>2793142</td><td>5</td><td>Ungated rank32 corrector at layer3; selector256</td><td>32</td><td><a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/runs/aira-architecture-20261008/efficiency/trial-0001/training/readiness.json">Native update receipt</a></td></tr>
+</tbody></table></div>
+<p>These are actual native proposals, not the manual pilots or a prescribed sequence. Actual Docker IDs and optimizer logs prove their GPU execution.</p>
 <h3>Two smoke failures produced permanent fixes</h3>
 <p>A random early-layer gate received logits from −2128 to −1096. Every sigmoid output was zero, so all three corrector gradients stayed zero.</p>
 <p>The gate now starts at zero. The corrected pilot produced nonzero down, up, and gate gradients in all three layers.</p>
