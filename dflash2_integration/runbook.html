@@ -1,82 +1,175 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DFlash2 bounded research: live run report</title>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DFlash2 autoresearch: measured results and runbook</title>
 <style>
-:root{color-scheme:light;--ink:#172a38;--muted:#526471;--accent:#14566c;--line:#d4e0e5;--bad:#a33}
-*{box-sizing:border-box}
-body{margin:0;background:#f3f6f8;color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-main{max-width:1100px;margin:auto;padding:36px 28px 70px;background:white}
-h1{font-size:32px;line-height:1.2}h2{margin-top:38px;border-top:1px solid var(--line);padding-top:22px}
-a{color:var(--accent)}p{max-width:90ch}
-.note{color:var(--muted);font-size:14px}
-.callout{background:#eaf3f6;border-left:4px solid var(--accent);padding:14px 18px;margin:16px 0}
-.risk{background:#fff6e7;border-left:4px solid #b07a1b;padding:14px 18px;margin:16px 0}
-.scroll{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:14px}
-th,td{text-align:left;vertical-align:top;border:1px solid var(--line);padding:6px 9px}
-th{background:#eef4f6}
-.tag{display:inline-block;background:#eef4f6;border:1px solid var(--line);border-radius:12px;padding:2px 10px;margin-right:8px;font-size:13px;color:var(--muted)}
-td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
-td.worse{color:var(--bad)}
-.mono{font-family:ui-monospace,Menlo,monospace;font-size:13px}
-code{background:#f4f4f4;padding:1px 4px;border-radius:3px}
+:root{color-scheme:light;--ink:#172a38;--muted:#526471;--accent:#14566c;--line:#d4e0e5}
+*{box-sizing:border-box}body{margin:0;background:#f3f6f8;color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+main{max-width:1120px;margin:auto;padding:36px 28px 70px;background:white}h1{font-size:34px;line-height:1.2}h2{margin-top:36px;border-top:1px solid var(--line);padding-top:20px}h3{margin-top:24px}a{color:var(--accent)}p{max-width:94ch}
+.note{color:var(--muted);font-size:14px}.callout{background:#eaf3f6;border-left:4px solid var(--accent);padding:14px 18px}.risk{background:#fff6e7;border-left:4px solid #b07a1b;padding:14px 18px}
+.scroll{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;vertical-align:top;border:1px solid var(--line);padding:7px 9px}th{background:#eef4f6}.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+code,pre{font:13px/1.6 ui-monospace,Menlo,monospace}code{background:#f4f4f4;padding:1px 4px;border-radius:3px;overflow-wrap:anywhere}pre{background:#f4f6f8;padding:16px;overflow-x:auto}svg{width:100%;height:auto}nav{display:flex;flex-wrap:wrap;gap:15px}.tag{color:var(--muted);font-size:14px}
+@media(max-width:600px){main{padding:24px 15px}h1{font-size:27px}}
 </style>
 </head>
 <body><main>
-<p><span class="tag">Live run report</span><span class="tag">Autoresearch H200 node</span><span class="tag">2026-10-08</span></p>
-<h1>Bounded DFlash2 research: first measured results</h1>
-<p class="callout"><b>Decision:</b> keep the integration running. The agent loop works end to end: the model proposes, the immutable evaluator trains and serves, and the measured throughput feeds the next proposal. No candidate beat the matched baseline yet. All numbers below are development screens, not verified wins.</p>
+<p class="tag">2026-10-08 · 89.169.100.246 · 8 × H200 · Initial bounded search complete</p>
+<h1>DFlash2 autoresearch: measured results and runbook</h1>
+<p class="callout"><b>The real AIRA loop executed and both lanes reached their trial limits.</b> Four candidates completed native training and stock SGLang evaluation. No candidate beat the matched baseline. The best recipe reached <b>314.32 output tokens/s</b>; the matched baseline reached <b>314.47</b>.</p>
+<p>The teacher is <a href="https://huggingface.co/Qwen/Qwen3.8-27B">Qwen/Qwen3.8-27B</a>, with FP8 weights and TP1. The primary draft model uses BF16 weights.</p>
+<p>This is a development screen, not a convergence study or a verified improvement. The implementation is <a href="https://github.com/yilianliu-nebius/aira-dojo/pull/1">draft PR #1 on the fork</a>; it is not a PR to FacebookResearch.</p>
+<nav><a href="#results">Results</a><a href="#framework">Framework</a><a href="#reference">Preserved run</a><a href="#training">Native training</a><a href="#controls">Controls</a><a href="#operations">Operations</a><a href="#verification">Verification</a></nav>
 
-<p>This page reports the live state of the run described in the <a href="../../harness/scratch/2026-10-07-dflash2-architecture-experiment/index.html">experiment proposal</a> and the <a href="../../agentic-specdec-research.html">specdec agent research memo</a>. The teacher is <a href="https://huggingface.co/Qwen/Qwen3.8-27B">Qwen/Qwen3.8-27B</a>, FP8, tensor parallel 1. The drafter is <a href="https://huggingface.co/incoai/Qwen3.8-27B-DFlash2">incoai/Qwen3.8-27B-DFlash2</a>. The fitness metric is useful_output_tokens_per_second from stock SGLang serving, not a training loss.</p>
-
-<h2 id="control">1. The feedback loop is closed</h2>
-<p>The controller uses the upstream AIRA-dojo Greedy policy unmodified: operators, search policy, memory, journal, and checkpoints are native. The task adapter restricts the proposal space to a literal Python assignment of bounded parameters. The evaluator is immutable: it owns training, serving, validity, and fitness. This is the closed agent loop the memo asked for, at L4 scale.</p>
-<p>Proof the loop uses evidence: the third recipe proposal cites the measured pooled diagnostics of the second trial. It observed that selector_teacher_agreement fell from 0.4732 to 0.4643 and selector_greedy_accepted_length fell from 4.0 to 3.75, then proposed a smaller learning rate to preserve early-prefix teacher compatibility. The agent read the measured result and changed its next proposal accordingly.</p>
-
-<h2 id="results">2. Measured results so far</h2>
-<p>All trials share seed 42, the fixed teacher, and a matched baseline of 314.47 useful output tokens/s (released baseline: 315.12). Each trial trains 32 updates on the shared feature cache, exports, serves on one H200, and benchmarks 32 requests. Positive deltas are wins; every measured delta is negative so far.</p>
+<h2 id="results">1. Final results of the initial screen</h2>
+<p>The common pilot has 32 prompts: 16 GSM8K and 16 HumanEval. The sampler uses temperature 1, top_p 0.95, top_k 20, and a 2,048-token cap. EOS remains active.</p>
 <div class="scroll"><table>
-<thead><tr><th>Lane</th><th>Change</th><th class="num">Useful tok/s</th><th class="num">Δ vs baseline</th><th class="num">Acceptance length</th><th>Result</th></tr></thead>
+<thead><tr><th>Arm</th><th>Change</th><th>Output tokens/s</th><th>Delta vs matched</th><th>Pooled acceptance</th><th>EOS / capped</th><th>Evidence</th></tr></thead>
 <tbody>
-<tr><td>Baseline</td><td>Released checkpoint, rank 256, lr 3e-5, weight 0.1</td><td class="num">314.47</td><td class="num">0</td><td class="num">—</td><td>Matched control</td></tr>
-<tr><td>Architecture 1</td><td>selector_rank 256 → 384</td><td class="num">312.59</td><td class="num worse">−1.88</td><td class="num">4.388</td><td>Capacity hypothesis rejected at this budget</td></tr>
-<tr><td>Recipe 1</td><td>learning_rate 3e-5 → 1e-5</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td>In flight</td></tr>
-<tr><td>Recipe 2</td><td>selector_loss_weight 0.1 → 0.2</td><td class="num">303.93</td><td class="num worse">−10.54</td><td class="num">4.269</td><td>Stronger selector supervision hurt throughput</td></tr>
-<tr><td>Recipe 3</td><td>lr 3e-5 → 2e-5 (weight 0.2 kept)</td><td class="num">307.92</td><td class="num worse">−6.55</td><td class="num">4.312</td><td>Partially recovered from trial 2, still below baseline</td></tr>
-<tr><td>Recipe 4</td><td>In flight</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td>Running</td></tr>
+<tr><td>Target-only</td><td>No drafter</td><td class="num">98.71</td><td>Not the fitness control</td><td>Not applicable</td><td class="num">23 / 9</td><td><a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261007/results/baseline/target-pilot.json">Benchmark</a></td></tr>
+<tr><td>Released B0</td><td>Untouched released DFlash2</td><td class="num">315.12</td><td class="num">+0.65</td><td class="num">4.4264</td><td class="num">25 / 7</td><td><a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261007/results/baseline/released-bf16draft-pilot.json">Benchmark</a></td></tr>
+<tr><td>Matched B1</td><td>Rank 256; LR 3e-5; selector loss weight 0.1; 32 updates</td><td class="num">314.47</td><td class="num">0.00</td><td class="num">4.4129</td><td class="num">24 / 8</td><td><a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261007/results/baseline/matched-bf16draft-pilot.json">Benchmark</a></td></tr>
+<tr><td>Architecture 1</td><td>Rank 384; matched recipe</td><td class="num">312.59</td><td class="num">−1.88</td><td class="num">4.3877</td><td class="num">23 / 9</td><td><a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261007/runs/aira-20261008/architecture/trial-0001/result.json">Result</a></td></tr>
+<tr><td>Recipe 1</td><td>The model proposed an architecture candidate in the recipe lane</td><td>Not measured</td><td>Not applicable</td><td>Not applicable</td><td>Not applicable</td><td><a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261007/runs/aira-20261008/recipe/trial-0001/result.json">Rejected before GPU execution</a></td></tr>
+<tr><td>Recipe 2</td><td>Rank 256; LR 3e-5; weight 0.2</td><td class="num">303.93</td><td class="num">−10.54</td><td class="num">4.2694</td><td class="num">24 / 8</td><td><a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261007/runs/aira-20261008/recipe/trial-0002/result.json">Result</a></td></tr>
+<tr><td>Recipe 3</td><td>Rank 256; LR 2e-5; weight 0.2</td><td class="num">307.92</td><td class="num">−6.55</td><td class="num">4.3116</td><td class="num">23 / 9</td><td><a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261007/runs/aira-20261008/recipe/trial-0003/result.json">Result</a></td></tr>
+<tr><td>Recipe 4</td><td>Rank 256; LR 2e-5; weight 0.1</td><td class="num">314.32</td><td class="num">−0.15</td><td class="num">4.4152</td><td class="num">23 / 9</td><td><a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261007/runs/aira-20261008/recipe/trial-0004/result.json">Result</a></td></tr>
 </tbody></table></div>
-<p class="note">Each result is a development screen with no paired confidence interval and no multi-seed confirmation. The journal is at <span class="mono">runs/aira-20261008/&lt;lane&gt;/checkpoint/journal.jsonl</span> on the node.</p>
+<p>All four valid candidates completed 32 updates, strict checkpoint reload, 32 successful requests, and zero benchmark errors. Each candidate server then stopped.</p>
+<p>The architecture lane completed one attempt in 532.82 seconds. The recipe lane completed four attempts in 1,699.83 seconds, including the rejected first proposal. Both stopped with <code>trial_limit</code>, not the wall deadline.</p>
+<p>Read the <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261007/runs/aira-20261008/architecture/summary.json">architecture summary</a> and <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261007/runs/aira-20261008/recipe/summary.json">recipe summary</a>. Their best-candidate files identify journal shortlists, not winners over B0 or B1.</p>
+<h3>Metric names need care</h3>
+<p>The table reports <b>all valid generated output tokens divided by benchmark wall time</b>. This includes capped responses. It does not count speculative candidate tokens.</p>
+<p>The evaluator stores this fitness in top-level <code>useful_output_tokens_per_second</code>; its source is <code>benchmark.tokens_per_second</code>. The nested <code>benchmark.useful_output_tokens_per_second</code> has a different meaning: it counts only output from requests that reach natural EOS.</p>
+<p>For Architecture 1, these rates are 312.59 total output tokens/s and 112.46 EOS-only tokens/s. The table shows EOS and cap counts to expose this distinction. No scorer or running search was changed to rename the fields.</p>
+<p>Pooled acceptance is <code>1 + sum(accepted_tokens) / sum(verification_rounds)</code>. It is not the mean of per-request acceptance lengths.</p>
 
-<h2 id="diagnostics">3. What the diagnostics show</h2>
-<p>The architecture trial supplies before/after pooled teacher-matching ratios. Rank 384 did not improve alignment; it made it slightly worse.</p>
-<div class="scroll"><table>
-<thead><tr><th>Pooled ratio</th><th class="num">Before (rank 256)</th><th class="num">After (rank 384)</th></tr></thead>
-<tbody>
-<tr><td>selector_teacher_agreement</td><td class="num">0.4732</td><td class="num worse">0.4554</td></tr>
-<tr><td>teacher_top1_agreement</td><td class="num">0.5000</td><td class="num worse">0.4732</td></tr>
-<tr><td>selector_greedy_accepted_length</td><td class="num">4.00</td><td class="num worse">3.75</td></tr>
-<tr><td>teacher_overlap</td><td class="num">0.5095</td><td class="num worse">0.4905</td></tr>
-<tr><td>selector_self_conditioned_accuracy</td><td class="num">0.4464</td><td class="num worse">0.4286</td></tr>
-</tbody></table></div>
-<p>Position bins show where agreement dies: selector_teacher_agreement falls from 0.94 at position 1 to 0.25 by position 7, in both ranks. The capacity bottleneck hypothesis predicted the opposite of what was measured. That is a useful negative result: within this 32-update budget, rank 384 does not pay for itself, and alignment decays with draft position regardless of rank.</p>
+<h2 id="framework">2. Existing framework, not a custom search policy</h2>
+<p>The implementation uses <a href="https://github.com/facebookresearch/aira-dojo/tree/c795d8649d30b77fa9b8c011b978bba7127507ad">facebookresearch/aira-dojo</a>, from <a href="https://arxiv.org/abs/2507.02554">AI Research Agents for Machine Learning</a>. The upstream framework supplies the Greedy policy, draft/debug/improve operators, memory, Node, Journal, and checkpoints.</p>
+<p>The adapter replaces task-specific model and evaluator I/O. The model emits one literal <code>candidate = {...}</code> assignment. The adapter parses the literal without execution. It rejects unknown fields, calls, non-finite values, wrong-lane candidates, and architecture/recipe confounds.</p>
+<p>The real proposer is <code>openai-codex/gpt-6.1-sol</code>, with high reasoning effort through the local OMP bridge. No teacher or GPU model acted as the proposer.</p>
+<p>Recipe 3 cites Recipe 2’s measured diagnostics before it reduces the learning rate. Recipe 4 cites Recipe 3’s result before it restores the selector loss weight. This proves that evaluator feedback reached subsequent native proposals.</p>
+<p>Evidence: the <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261007/runs/aira-20261008/architecture/checkpoint/journal.jsonl">architecture Journal</a>, <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261007/runs/aira-20261008/recipe/checkpoint/journal.jsonl">recipe Journal</a>, and <a href="https://github.com/yilianliu-nebius/aira-dojo/blob/task/build-and-start-the-autoresearch/dflash2_integration/aira_runner.py">controller source</a> retain the proposals and actual metrics.</p>
+<p class="risk"><b>License:</b> AIRA-dojo uses <a href="https://creativecommons.org/licenses/by-nc/4.0/">CC BY-NC 4.0</a>. Commercial use needs separate permission. This report does not certify that research inside a company qualifies as noncommercial use.</p>
 
-<h2 id="hygiene">4. Integrity controls that held</h2>
+<h2 id="reference">3. Original pod state preserved</h2>
+<p>The original trainer <code>dflash2-h200-246-c-utv</code> is stopped and retained. Its original source, configuration, mounted checkpoints, and run directory remain in place.</p>
 <ul>
-<li>The evaluator is immutable; fitness comes only from its stdout. The model cannot edit the verifier, teacher settings, or harness.</li>
-<li>Both lanes share one absolute wall deadline; the architecture lane is capped at 1 trial and the recipe lane at 4, per the original ceiling.</li>
-<li>Rank 512 stays excluded: its 6.67% parameter growth violates the 5% gate over the 1,924,404,480-parameter drafter.</li>
-<li>Initialization parity is verified per trial: logit_max_error 0.0 and probability_max_error 0.0 before training.</li>
-<li>Training prefixes are disjoint across trials; the feature cache manifest is hash-pinned (<span class="mono">c62c7a8f…</span>).</li>
-<li>The controller refuses to overwrite a work directory, so each lane keeps its own journal and checkpoint.</li>
+<li>Original root: <a href="ssh://autoresearch-h200/home/ubuntu/experiments/dflash2-b200-training-20260922/ondevice/h200-c-utv-relocation"><code>/home/ubuntu/experiments/dflash2-b200-training-20260922/ondevice/h200-c-utv-relocation</code></a>.</li>
+<li>Papyrax revision: <code>6b5641ab451884ff2f7026975d6fc0b87349aedd</code>.</li>
+<li>TorchSpec revision: <code>8474ed46dd383557fbdd15ed9d10e9c202802414</code>.</li>
+<li>Original image: <code>sha256:88326ddd4d8adb1cef5d2d44c917493dee513190e860561cef6673d476027687</code>.</li>
+<li>The last committed checkpoint is step 7488, with <code>commit_success.txt</code>. The last observed update was 7518.</li>
+<li>This is a checkpoint-preservation claim, not a claim that a new HF export or YT upload succeeded.</li>
+<li>The <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261007/reference">reference snapshot directory</a> retains source/configuration and safe container metadata. Secret environment values are excluded.</li>
 </ul>
+<p>The original services <code>h200-246-local-teacher0</code>, <code>h200-246-local-teacher1</code>, and <code>h200-246-local-mooncake</code> remain active. The existing teachers already use FP8 weights with TP1; BF16 is their activation dtype.</p>
 
-<h2 id="reading">5. How to read these numbers</h2>
-<p class="risk"><b>These are not wins.</b> Every measured candidate is below the matched baseline. The best journal candidate is a shortlist entry, not a verified improvement. Confirmation would need release and matched controls, isolated same-GPU A/B runs, randomized paired confidence intervals, and three seeds — outside this bounded screen.</p>
-<p>The negative results still carry information. The memo's proxy-fidelity warning applies directly: a training-side selector improvement did not transfer to served throughput, and the pooled diagnostics explained why after the fact. A short-budget screen that rejects three candidates cheaply has done its job.</p>
+<h2 id="training">4. Native released-weight training</h2>
+<p>The trainer uses <a href="https://github.com/sgl-project/SpecForge/tree/fdcc2eddf1b56b5b24a5a15d3abcb366adfeb5aa">SpecForge at fdcc2ed</a>. It loads the released native <code>DFlash2DraftModel</code> strictly and uses native <code>OnlineDFlashModel</code>.</p>
+<ul>
+<li>Objective: native hard-token DFlash CE plus strict natural-topK selector CE.</li>
+<li>Selector: free released full-vocabulary codebooks; no inverse projection or reset to random codebooks.</li>
+<li>Optimizer: AdamW; seed 42; eight anchors; block size eight.</li>
+<li>Shared cache: eight train prefixes and two development prefixes, each limited to 512 tokens.</li>
+<li>Train and development prefixes are disjoint. All candidates intentionally reuse the same frozen cache for a matched comparison.</li>
+<li>Budget: 32 updates or 300 measured seconds, whichever comes first. Actual update time is about nine seconds; startup and export have separate timings.</li>
+<li>All four valid candidates consumed 1,780 supervised tokens and passed strict saved-checkpoint reload.</li>
+</ul>
+<p>The <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261007/artifacts/feature-cache-supervised/manifest.json">cache manifest</a> has SHA256 <code>c62c7a8f1bb613b641d18b515cd593a74b9521879885d4af45ccd0aa6bb89389</code>. Native token labels and masks retain their next-token alignment.</p>
+<p>The <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261007/artifacts/teacher-head-contract.json">teacher head contract</a> fixes the embedding, head, and final norm as BF16 tensors. Captured final hidden states precede the norm. The trainer applies GemmaRMSNorm once, with <code>weight + 1</code> and epsilon <code>1e-6</code>.</p>
+<p>The released drafter has 1,924,404,480 parameters. Rank 384 adds 64,225,280 parameters, or 3.3374%, within the original 5% gate. Rank 512 exceeds that gate.</p>
+<p>The rank-384 initialization check measured zero maximum logit error and zero probability error on the frozen development prefixes. The native trainer also checks the new factor gradients.</p>
+<p>Diagnostics pool counts as <code>sum(numerator) / sum(denominator)</code>, not conversation means. Only declared numeric ratios and up to seven position bins reach the model. Raw cache arrays, token IDs, and hidden prompts do not.</p>
+<p>Native teacher overlap uses full-vocabulary probabilities before top-p/top-k filters. It is not stock verifier acceptance probability. Two development conversations do not establish a general capacity bottleneck or its absence.</p>
 
-<h2 id="software">6. Software and license</h2>
-<p>The integration lives in <span class="mono">dflash2_integration/</span>: <span class="mono">aira_runner.py</span> (native Greedy controller), <span class="mono">evaluate.py</span> (immutable evaluator), <span class="mono">llm_bridge.py</span> (loopback OMP bridge), <span class="mono">capture.py</span>, <span class="mono">benchmark.py</span>, and <span class="mono">job_registrar.py</span>. A clean <span class="mono">pip install -r dflash2_integration/aira/requirements.txt</span> was verified with the CLI help and <span class="mono">pip check</span>.</p>
-<p>The framework is <a href="https://creativecommons.org/licenses/by-nc/4.0/deed.en">CC BY-NC 4.0</a>. Research use is covered; commercial use needs separate permission.</p>
+<h2 id="controls">5. Fixed engine and evaluator controls</h2>
+<div class="scroll"><table><thead><tr><th>Component</th><th>Exact pin or control</th></tr></thead><tbody>
+<tr><td>AIRA-dojo</td><td><code>c795d8649d30b77fa9b8c011b978bba7127507ad</code></td></tr>
+<tr><td>Released DFlash2</td><td><code>015e795645c74b1a0eeef3b570031fb62e769bc5</code>; weights SHA256 <code>67fc76d68dc5a9415511a4f394ef744d67510cd20e93b37cc2cc7d28e4bab65c</code></td></tr>
+<tr><td>SGLang</td><td><code>5f55db35e926d50676f75b812640ea2410b0fe0e</code></td></tr>
+<tr><td>GPU image</td><td><code>sha256:6b454775d5e28e8a16d890fa9f3d7b4f442f41c78ed16fd1551c428cc1ccf80c</code></td></tr>
+<tr><td>Pilot input SHA256</td><td><code>5a0d9e47b16ce7d026325c0eb2921739577dc32ef406f732fa43bc0dc3428c7c</code></td></tr>
+<tr><td>Confirmation input SHA256</td><td><code>a8d36f62bfd0c0ebd1ec4712c37efafc4d3371ac3408b83776ea8de52a6f35cc</code></td></tr>
+<tr><td>Chat template SHA256</td><td><code>c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041</code></td></tr>
+<tr><td>Original policy SHA256</td><td><code>8617b50adfe6422ff3bc93e7ac30a8a389eceb7adfb6cc570615b1f077dd1223</code></td></tr>
+</tbody></table></div>
+<p>The stock engine uses compiled production kernels and CUDA graphs. The target config selects FP8 automatically; the drafter remains BF16. No global FP8 override quantizes the drafter.</p>
+<p>The optional <code>--enable-torch-compile</code> path failed in a stock GDN Triton dtype loop. That optional flag was removed. No verifier or kernel was patched; the normal JIT and CUDA graphs executed.</p>
+<p>The <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261007/protected/manifest.json">protected manifest</a> covers 443 files, including sources, schema, policy, controls, cache, prompt sets, released weights, and teacher artifacts. Root-owned read-only files and pre/post hashes protect these inputs.</p>
+<p>The rank list was temporarily amended during setup, then restored to its exact original bytes before any AIRA trial. The original list is <code>[256,384,512]</code>; the measured 5% gate excludes 512. The manifest check verified the original policy hash before launch.</p>
+<p>A shared benchmark lock serializes warmup and timing across both lanes. Training ran on GPUs 4 and 5 in parallel. Matched-control work used GPU 3; feature capture used GPU 6.</p>
+<p>The 16-prompt MATH500/MBPP set remains outside proposal access. Only B0 calibration ran there, at 323.71 output tokens/s. No candidate received hidden confirmation.</p>
+<p class="risk">These screens do not establish a throughput gain, convergence, long-context quality, or a new losslessness certification. Stock verifier use is not a substitute for a dedicated greedy-parity and sampling-distribution study.</p>
+
+<h2 id="operations">6. Node operations and service ownership</h2>
+<p>Experiment root: <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261007"><code>/home/ubuntu/dflash2-autoresearch-20261007</code></a>. The SSH alias is <code>autoresearch-h200</code>.</p>
+<div class="scroll"><table><thead><tr><th>GPU</th><th>Final observed state</th></tr></thead><tbody>
+<tr><td>0–1</td><td>Original TP1 teacher services remain active.</td></tr>
+<tr><td>2</td><td><code>aira-dflash2-released-baseline-r4</code> remains active on port 28522.</td></tr>
+<tr><td>3</td><td>The matched trainer and server completed and stopped.</td></tr>
+<tr><td>4–5</td><td>All four candidate trainers and servers completed and stopped.</td></tr>
+<tr><td>6</td><td>Feature capture completed and stopped.</td></tr>
+<tr><td>7</td><td><code>aira-dflash2-target-only-r3</code> remains active on port 28527; it is not a proposer.</td></tr>
+</tbody></table></div>
+<p>The architecture controller PID was 2201442. The recipe controller PID was 2201443. Both completed. The shared deadline was epoch <code>1791534952.0279832</code>, a 24-hour maximum from launch, not an eight-hour budget.</p>
+<p>The <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261007/reports/job-events.jsonl">job event ledger</a> records actual Docker IDs, GPU assignments, and artifact paths. The local relay registered those IDs with the work task.</p>
+<h3>Model transport requires the laptop</h3>
+<p>The node bridge serves loopback port 18767 and uses durable request files. A local short-SSH relay forwards requests to the local OMP bridge on port 18765. Long reverse tunnels are not the active path.</p>
+<p>New proposals require the laptop’s OMP bridge and relay. No model credential was copied to the node. Existing GPU processes do not depend on the laptop to finish.</p>
+<p>The support services retain these task names: <code>aira-dflash2-llm-bridge</code> and <code>aira-dflash2-short-ssh-relay</code>. The node bridge PID was 2183922. Check the current command line before any signal; never reuse an old PID blindly.</p>
+<h3>Start a new operator-approved bounded run on the configured node</h3>
+<p>Do not duplicate the completed screen without a scientific reason. Keep the protected policy and artifacts unchanged. Use a new run directory.</p>
+<pre>export DFLASH2_ROOT=/home/ubuntu/dflash2-autoresearch-20261007
+export PYTHONPATH="$DFLASH2_ROOT/repo/src:$DFLASH2_ROOT/repo"
+export DFLASH2_JOB_BRIDGE_URL=http://127.0.0.1:18767/jobs
+PY="$DFLASH2_ROOT/aira-env/bin/python"
+RUN="$DFLASH2_ROOT/runs/aira-$(date -u +%Y%m%dT%H%M%SZ)"
+DEADLINE="$($PY -c 'import time; print(time.time() + 86400)')"
+mkdir -p "$RUN"
+for KIND in architecture recipe; do
+  "$PY" -m dflash2_integration.aira_runner \
+    --kind "$KIND" --work-dir "$RUN/$KIND" \
+    --baseline-result "$DFLASH2_ROOT/protected/baseline-result.json" \
+    --deadline-unix "$DEADLINE" \
+    > "$RUN/$KIND.log" 2>&amp;1 &amp;
+  echo "$KIND controller PID: $!"
+done</pre>
+<p>The default attempt limits are one architecture proposal and four recipe proposals. The architecture arm changes only rank to 384. Recipe arms keep rank 256 and change the learning rate or selector loss weight within the schema.</p>
+<p>If a support service is absent, start only that service. Do not start a second bridge on an occupied port.</p>
+<pre># Node: run in a separate managed service.
+"$PY" -m dflash2_integration.node_bridge --root "$DFLASH2_ROOT"
+
+# Laptop: run each command in its own managed service from the repository.
+export PYTHONPATH=src:.
+.venv/bin/python -m dflash2_integration.llm_bridge
+.venv/bin/python -m dflash2_integration.job_registrar \
+  --host autoresearch-h200 \
+  --root /home/ubuntu/dflash2-autoresearch-20261007 \
+  --task build-and-start-the-autoresearch --seconds 86400</pre>
+<p>The configured node already has its dependencies and GPU image. For a fresh CPU controller, use Python 3.12 or 3.13 and the <a href="https://github.com/yilianliu-nebius/aira-dojo/blob/task/build-and-start-the-autoresearch/dflash2_integration/aira/requirements.txt">pinned native dependency list</a>. Do not replace the GPU environment with the CPU requirements.</p>
+<h3>Inspect or stop only task-owned work</h3>
+<pre>ssh autoresearch-h200 'docker ps --format "{{.Names}} {{.ID}}"'
+ssh autoresearch-h200 'docker ps --filter label=work.task=build-and-start-the-autoresearch --format "{{.Names}} {{.ID}}"'</pre>
+<ol>
+<li>Read the chosen lane’s log and <code>summary.json</code>.</li>
+<li>Check the active controller’s command line and run directory.</li>
+<li>Send SIGTERM only to that controller if it is still active.</li>
+<li>Check the task and trial labels before any container stop.</li>
+<li>Use <code>docker stop --timeout 30</code> only with a verified task-owned container ID.</li>
+<li>Preserve the original teachers, Mooncake service, checkpoint directories, and run evidence.</li>
+</ol>
+<p>The adapter saves its native Journal on exit. The evaluator stops only its own labeled trial containers. Two consecutive infrastructure failures stop the lane.</p>
+
+<h2 id="verification">7. Exercised verification and limits</h2>
+<ul>
+<li>Real FP8/TP1 B0, B1, target-only, and four candidate benchmarks completed with the stock engine.</li>
+<li>GPU optimizer updates, checkpoint export, strict reload, and native Journal feedback were observed.</li>
+<li>Eight contract tests passed for literal parsing, invalid values, confounds, protected artifact mutation, and pooled diagnostic behavior.</li>
+<li>A clean CPU installation passed <code>aira_runner --help</code> and <code>pip check</code>.</li>
+<li>No original checkpoint, configuration, or source directory was deleted.</li>
+</ul>
+<p>The initial prompt received aggregate baseline throughput, not the full baseline diagnostic table. Later Journal feedback supplied measured teacher ratios and position bins. This limit does not change the recorded metrics.</p>
+<p>Confidence intervals, three-seed confirmation, full training, and broad hidden evaluation were not performed. A positive pilot delta alone cannot certify a win.</p>
+<p>Source entry points: <a href="https://github.com/yilianliu-nebius/aira-dojo/blob/task/build-and-start-the-autoresearch/dflash2_integration/evaluate.py">evaluator</a>, <a href="https://github.com/yilianliu-nebius/aira-dojo/blob/task/build-and-start-the-autoresearch/dflash2_integration/trainer/runtime.py">native trainer</a>, <a href="https://github.com/yilianliu-nebius/aira-dojo/blob/task/build-and-start-the-autoresearch/dflash2_integration/serve.py">stock server launcher</a>, and <a href="https://github.com/yilianliu-nebius/aira-dojo/blob/task/build-and-start-the-autoresearch/dflash2_integration/benchmark.py">benchmark</a>.</p>
 </main></body></html>
