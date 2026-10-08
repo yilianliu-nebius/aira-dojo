@@ -16,7 +16,7 @@ code,pre{font:13px/1.6 ui-monospace,Menlo,monospace}code{background:#f4f4f4;padd
 <body><main>
 <p class="tag">2026-10-08 · 89.169.100.246 · 8 × H200 · Versioned architecture expansion</p>
 <h1>DFlash2 architecture search</h1>
-<p class="callout"><b>The search now composes draft blocks, not only selector ranks.</b> Five manual architecture pilots passed native updates, strict export/reload, and stock serving. None established a verified gain. The best pilot reached <b>314.98 output tokens/s</b>; the historical released control reached <b>315.12</b>.</p>
+<p class="callout"><b>The search now composes draft blocks, not only selector ranks.</b> The first native wave completed 16 attempts: 14 valid trials and two duplicate rejections. Its best screen reached <b>317.54 output tokens/s</b>; the historical released control reached <b>315.12</b>. This is not a verified gain.</p>
 <p>The teacher is <a href="https://huggingface.co/Qwen/Qwen3.8-27B">Qwen/Qwen3.8-27B</a>, with FP8 weights and TP1. The primary draft model uses BF16 weights.</p>
 <p>This is a development screen, not a convergence study or a verified improvement. The implementation is <a href="https://github.com/yilianliu-nebius/aira-dojo/pull/1">draft PR #1 on the fork</a>; it is not a PR to FacebookResearch.</p>
 <nav><a href="#architecture">Expanded architecture</a><a href="#pilots">New pilots</a><a href="#results">Initial results</a><a href="#framework">Framework</a><a href="#training">Native training</a><a href="#controls">Controls</a><a href="#operations">Operations</a><a href="#verification">Verification</a></nav>
@@ -34,16 +34,47 @@ code,pre{font:13px/1.6 ui-monospace,Menlo,monospace}code{background:#f4f4f4;padd
 <li>The recipe stays at LR 3e-5, selector loss weight 0.1, and seed 42. Teacher, sampler, verifier, cache, and budgets stay fixed.</li>
 </ul>
 <p>The model receives four research questions: local token interactions, nonlinear correction, complementary compositions, and inference efficiency. These questions do not prescribe a parameter sequence.</p>
-<p id="live-status">All four native AIRA-dojo Greedy controllers remain active. Their first model-chosen proposals each completed 32 real updates on GPUs3–6.</p>
+<p id="live-status">At 20:06 UTC, four detached continuation supervisors were active. Each first new graph completed 32 real optimizer updates. Four trial servers were active.</p>
 <p>Read the <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/reports/search-launch.json">launch contract</a>, <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/protected/policy.json">versioned policy</a>, and <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/runs/aira-architecture-20261008">native lane records</a>. The shared deadline is epoch <code>1791569465.625282</code>.</p>
-<p>Each lane has four attempts and the same 24-hour maximum deadline. The first serving evaluators continue; no first-search fitness is reported here.</p>
-<div class="scroll"><table><thead><tr><th>Native focus</th><th>Controller PID</th><th>First GPU</th><th>Actual model proposal</th><th>Updates</th><th>Evidence</th></tr></thead><tbody>
+<p>The first wave completed 16 proposal attempts. Its original deadline remains unchanged. The table below records the first-wave launches, not current process IDs.</p>
+<div class="scroll"><table><thead><tr><th>Native focus</th><th>Original PID</th><th>First GPU</th><th>Actual model proposal</th><th>Updates</th><th>Evidence</th></tr></thead><tbody>
 <tr><td>Local token interactions</td><td>2792830</td><td>6</td><td>Attention0 taps[0,1,2,4], group16; selector256</td><td>32</td><td><a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/runs/aira-architecture-20261008/local_mixing/trial-0001/training/readiness.json">Native update receipt</a></td></tr>
 <tr><td>Nonlinear correction</td><td>2792945</td><td>3</td><td>Ungated rank128 corrector at layer3; selector256</td><td>32</td><td><a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/runs/aira-architecture-20261008/nonlinear_correction/trial-0001/training/readiness.json">Native update receipt</a></td></tr>
 <tr><td>Complementary composition</td><td>2792595</td><td>4</td><td>Attention1 taps[0,1,2], group8; ungated rank32 corrector4; selector256</td><td>32</td><td><a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/runs/aira-architecture-20261008/composition/trial-0001/training/readiness.json">Native update receipt</a></td></tr>
 <tr><td>Inference efficiency</td><td>2793142</td><td>5</td><td>Ungated rank32 corrector at layer3; selector256</td><td>32</td><td><a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/runs/aira-architecture-20261008/efficiency/trial-0001/training/readiness.json">Native update receipt</a></td></tr>
 </tbody></table></div>
 <p>These are actual native proposals, not the manual pilots or a prescribed sequence. Actual Docker IDs and optimizer logs prove their GPU execution.</p>
+<h3>Completed first native wave</h3>
+<p>All four lanes stopped normally at the attempt limit. All 14 valid trials completed the benchmark with zero errors and stopped their servers successfully.</p>
+<div class="scroll"><table><thead><tr><th>Focus</th><th>Valid / attempted</th><th>Best output tokens/s</th><th>Acceptance length</th></tr></thead><tbody>
+<tr><td>Local token interactions</td><td>4 / 4</td><td>317.543585</td><td>4.451306</td></tr>
+<tr><td>Nonlinear correction</td><td>3 / 4</td><td>312.913774</td><td>4.387118</td></tr>
+<tr><td>Complementary composition</td><td>4 / 4</td><td>309.701186</td><td>4.380006</td></tr>
+<tr><td>Inference efficiency</td><td>3 / 4</td><td>314.299990</td><td>4.418863</td></tr>
+</tbody></table></div>
+<p>The two invalid attempts repeated graphs from another lane. The evaluator rejected both before GPU work. No infrastructure failure caused either rejection.</p>
+<p>The best graph uses attention0 taps[0,1,2,4] with group16. It exceeds the historical released screen by 2.42 tokens/s, without paired or multi-seed confirmation.</p>
+<p>Read the <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/reports/completed-first-wave.json">first-wave aggregate evidence</a> and <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/reports/completed-first-wave-public-context.json">public graph context</a>.</p>
+<h3>Continuous native journal continuation</h3>
+<p>The user authorized continued search after the first wave reached its attempt limit. Four supervisors now run successive batches of at most four new attempts.</p>
+<p>Each supervisor restores the full native journal with <code>DFlashGreedy.load_checkpoint()</code> and calls the unchanged native <code>step()</code>. Every original node remains in the journal.</p>
+<p>The original deadline remains <b>2026-10-09 18:11:05 UTC</b>. A batch boundary no longer stops useful search. The protected source, policy, evaluator, and trial limits remain unchanged.</p>
+<div class="scroll"><table><thead><tr><th>Focus</th><th>Current supervisor PID</th><th>First continuation GPU</th><th>First new graph</th><th>Actual updates</th></tr></thead><tbody>
+<tr><td>Local interactions</td><td>3044130</td><td>3</td><td>Attention0 taps[0,1,4], group16</td><td>32</td></tr>
+<tr><td>Nonlinear correction</td><td>3044471</td><td>6</td><td>Ungated rank64 corrector at layer2</td><td>32</td></tr>
+<tr><td>Composition</td><td>3044134</td><td>4</td><td>Attention1 taps[0,1,2], group8; ungated rank64 corrector3</td><td>32</td></tr>
+<tr><td>Efficiency</td><td>3043969</td><td>5</td><td>Ungated rank32 corrector at layer2</td><td>32</td></tr>
+</tbody></table></div>
+<p>Read the <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/runs/continuation-20261008/first-native-update-proof.json">actual update proof</a>, <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/runs/continuation-20261008/authorization.json">continuation authorization</a>, and <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/runs/continuation-20261008/supervisor.py">external operational supervisor</a>.</p>
+<ul>
+<li>The supervisor stops a lane after an infrastructure error or a batch exception. It does not restart failed batches.</li>
+<li>Two consecutive all-invalid batches or two batches without a new trained graph stop that lane.</li>
+<li>A 128 GiB free-disk reserve and the original deadline stop further proposals. No evidence is deleted.</li>
+<li>Each proposal receives the globally claimed graph list. The unchanged evaluator still rejects duplicates.</li>
+<li>Create <code>runs/continuation-20261008/STOP</code> under the experiment root to stop all lanes before their next proposal.</li>
+<li>Send SIGTERM to a supervisor PID to cancel its current trial through native evaluator cleanup.</li>
+<li>The local relay is PID22069. New model proposals require this laptop, its model bridge, and network access to remain available.</li>
+</ul>
 <h3>Two smoke failures produced permanent fixes</h3>
 <p>A random early-layer gate received logits from −2128 to −1096. Every sigmoid output was zero, so all three corrector gradients stayed zero.</p>
 <p>The gate now starts at zero. The corrected pilot produced nonzero down, up, and gate gradients in all three layers.</p>
