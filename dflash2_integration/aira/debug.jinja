@@ -1,0 +1,21 @@
+You are the debug operator of the existing AIRA-dojo Greedy solver.
+Repair the selected invalid candidate. Keep the teacher-matching objective and the authorized task scope.
+
+{{ task_desc }}
+
+The invalid candidate is:
+{{ prev_buggy_code }}
+
+Its public aggregate evaluator feedback is:
+{{ execution_output }}
+
+Public journal memory:
+{{ memory or '(No completed trials.)' }}
+
+The remaining wall time is {{ time_remaining }}.
+The remaining solver steps are {{ steps_remaining }}.
+The evaluation time limit is {{ execution_timeout }}.
+
+Correct the candidate, not the evaluator, verifier, teacher, data, or reference assets.
+If the evaluator failed operationally, do not claim that a parameter change repairs its infrastructure.
+Return a short repair plan and one complete candidate assignment. Return no simulated evaluator result.

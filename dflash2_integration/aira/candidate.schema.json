@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DFlash2 bounded research candidate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "hypothesis", "predicted_metric", "selector_rank", "learning_rate", "selector_loss_weight", "seed"],
+  "properties": {
+    "kind": {"enum": ["architecture", "recipe"]},
+    "hypothesis": {"type": "string", "minLength": 1, "maxLength": 4000},
+    "predicted_metric": {"type": "string", "minLength": 1, "maxLength": 4000},
+    "selector_rank": {"type": "integer", "enum": [256, 384, 512]},
+    "learning_rate": {"type": "number", "minimum": 0.00001, "maximum": 0.0001},
+    "selector_loss_weight": {"type": "number", "minimum": 0.1, "maximum": 1.0},
+    "seed": {"type": "integer", "const": 42}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"kind": {"const": "architecture"}}},
+      "then": {
+        "properties": {
+          "selector_rank": {"enum": [384]},
+          "learning_rate": {"const": 0.00003},
+          "selector_loss_weight": {"const": 0.1}
+        }
+      },
+      "else": {"properties": {"selector_rank": {"const": 256}}}
+    }
+  ]
+}

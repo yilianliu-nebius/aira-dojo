@@ -21,6 +21,14 @@ The following documentation is available to help you get started with `aira-dojo
 - [Running Experiments](./docs/RUNNING_EXPERIMENTS.md) - How to run experiments with `aira-dojo`
 - [Building Superimage](./docs/BUILD_SUPERIMAGE.md) - Instructions for building the superimage container
 
+### DFlash2 research on Qwen3.8-27B
+
+The [HTML runbook and measured report](./dflash2_integration/runbook.html) describe the bounded DFlash2 integration.
+It uses the native AIRA Greedy policy, operators, memory, journal, and checkpoints.
+The task adapter accepts literal candidate parameters; the fixed evaluator owns training and measured stock SGLang throughput.
+The report includes the preserved reference run, exact source pins, controls, GPU jobs, and operational limits.
+The upstream CC BY-NC 4.0 license applies; commercial use needs separate permission.
+
 ## Terminology
 
 **Task**: A specific problem or challenge that the AI agent (solver) is designed to solve. Each task has a defined execution environment, solver action space, and evaluation function.

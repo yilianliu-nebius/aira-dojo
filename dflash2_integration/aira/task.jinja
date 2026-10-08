@@ -1,0 +1,56 @@
+Task: bounded DFlash2 {{ kind }} research.
+
+Optimize the draft model incoai/Qwen3.8-27B-DFlash2 for the fixed teacher Qwen/Qwen3.8-27B.
+The primary metric is useful_output_tokens_per_second from the immutable evaluator.
+The teacher stays FP8 with tensor parallel size 1. Its precision and settings are fixed.
+Acceptance length is a secondary diagnostic. Do not optimize generic language-model loss as the final objective.
+State a teacher-matching hypothesis: explain how the selector or recipe change improves accepted draft tokens and useful output throughput.
+Use predicted_metric to state the predicted direction and tradeoff for useful_output_tokens_per_second and acceptance_length.
+Use the evaluator's numeric teacher_matching aggregates and position diagnostics when the journal supplies them.
+Only declared before/after pooled_ratios metrics and position_bins are public.
+The evaluator pools each ratio as sum(numerator)/sum(denominator) across the development conversations.
+Each position metric has at most seven finite aggregate bins. Numeric IDs are not diagnostic metrics.
+Unavailable or zero-denominator metrics are absent. Do not invent zero values for them.
+Do not invent absent diagnostics. Do not request raw cache arrays, hidden prompts, record IDs, or diagnostic file paths.
+Only useful_output_tokens_per_second sets search fitness; teacher-matching diagnostics explain the result without a score override.
+The native overlap diagnostic uses full-vocabulary probabilities before production top-p/top-k filters.
+It is not the stock verifier acceptance probability. Use measured serving throughput as fitness.
+
+
+This task uses the existing AIRA-dojo Greedy research framework. It does not establish a novel or state-of-the-art drafter.
+Only measured evaluator results support performance claims. Do not invent trial results, baselines, or novelty claims.
+Every research result is a development screen. The best journal candidate is a shortlist entry, not a verified winner.
+Even a matched baseline does not establish a verified improvement.
+Final confirmation requires release and matched controls, isolated same-GPU A/B runs, randomized paired confidence intervals, and three seeds.
+The proposal seed remains 42; the confirmation protocol is outside this bounded search.
+
+Verified baseline aggregate context:
+{{ baseline_context }}
+
+The baseline spec has selector_rank=256, learning_rate=0.00003, selector_loss_weight=0.1, and seed=42.
+For the architecture lane, change selector_rank only. Keep the baseline learning rate and selector loss weight.
+The architecture lane permits only expanded rank 384. It uses a release warm start with initialization parity.
+The existing matched control uses rank 256. Do not propose that control again in the architecture lane.
+The release drafter has 1,924,404,480 actual parameters.
+The growth limit is 5% of that actual drafter count, not 5% of the target model size.
+Rank 384 increases the actual count by 3.337408%.
+Rank 512 remains in the protected rank list, but its 6.674816% growth violates the original 5% gate.
+Do not propose rank 512. The protected rank list does not grant an exception to the growth gate.
+The initial architecture lane has one trial. Propose the supported rank 384 with your own teacher-matching hypothesis.
+The original ceiling remains four trials per lane. It does not require four duplicate architecture trials.
+For the recipe lane, keep selector_rank=256. Change learning_rate and/or selector_loss_weight within the public schema.
+Keep seed=42 in both lanes. Do not combine architecture and recipe mutations in one candidate.
+Choose proposals from your hypothesis and journal evidence. The baseline reference does not prescribe a proposal sequence.
+
+Public candidate schema:
+{{ candidate_schema }}
+
+Return a short plan, then exactly one fenced Python block.
+Put exactly one `candidate = {...}` assignment in that block.
+Supply every required field with your actual proposed values.
+The candidate dictionary must contain only JSON-compatible literal values.
+The adapter parses this assignment without execution. It rejects unknown fields and unauthorized values.
+Do not return executable code, imports, functions, commands, file paths, additional assignments, or proposed edits.
+Do not access or change the scorer, teacher settings, hidden data, verifier, reference code, reference configs, or reference checkpoints.
+The model has no tools. The immutable evaluator owns training, serving, hidden data, validity, and fitness.
+Only candidate parameters and the public hypothesis are in the proposal scope.

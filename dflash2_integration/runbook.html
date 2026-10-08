@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DFlash2 bounded research: live run report</title>
+<style>
+:root{color-scheme:light;--ink:#172a38;--muted:#526471;--accent:#14566c;--line:#d4e0e5;--bad:#a33}
+*{box-sizing:border-box}
+body{margin:0;background:#f3f6f8;color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+main{max-width:1100px;margin:auto;padding:36px 28px 70px;background:white}
+h1{font-size:32px;line-height:1.2}h2{margin-top:38px;border-top:1px solid var(--line);padding-top:22px}
+a{color:var(--accent)}p{max-width:90ch}
+.note{color:var(--muted);font-size:14px}
+.callout{background:#eaf3f6;border-left:4px solid var(--accent);padding:14px 18px;margin:16px 0}
+.risk{background:#fff6e7;border-left:4px solid #b07a1b;padding:14px 18px;margin:16px 0}
+.scroll{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;vertical-align:top;border:1px solid var(--line);padding:6px 9px}
+th{background:#eef4f6}
+.tag{display:inline-block;background:#eef4f6;border:1px solid var(--line);border-radius:12px;padding:2px 10px;margin-right:8px;font-size:13px;color:var(--muted)}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+td.worse{color:var(--bad)}
+.mono{font-family:ui-monospace,Menlo,monospace;font-size:13px}
+code{background:#f4f4f4;padding:1px 4px;border-radius:3px}
+</style>
+</head>
+<body><main>
+<p><span class="tag">Live run report</span><span class="tag">Autoresearch H200 node</span><span class="tag">2026-10-08</span></p>
+<h1>Bounded DFlash2 research: first measured results</h1>
+<p class="callout"><b>Decision:</b> keep the integration running. The agent loop works end to end: the model proposes, the immutable evaluator trains and serves, and the measured throughput feeds the next proposal. No candidate beat the matched baseline yet. All numbers below are development screens, not verified wins.</p>
+
+<p>This page reports the live state of the run described in the <a href="../../harness/scratch/2026-10-07-dflash2-architecture-experiment/index.html">experiment proposal</a> and the <a href="../../agentic-specdec-research.html">specdec agent research memo</a>. The teacher is <a href="https://huggingface.co/Qwen/Qwen3.8-27B">Qwen/Qwen3.8-27B</a>, FP8, tensor parallel 1. The drafter is <a href="https://huggingface.co/incoai/Qwen3.8-27B-DFlash2">incoai/Qwen3.8-27B-DFlash2</a>. The fitness metric is useful_output_tokens_per_second from stock SGLang serving, not a training loss.</p>
+
+<h2 id="control">1. The feedback loop is closed</h2>
+<p>The controller uses the upstream AIRA-dojo Greedy policy unmodified: operators, search policy, memory, journal, and checkpoints are native. The task adapter restricts the proposal space to a literal Python assignment of bounded parameters. The evaluator is immutable: it owns training, serving, validity, and fitness. This is the closed agent loop the memo asked for, at L4 scale.</p>
+<p>Proof the loop uses evidence: the third recipe proposal cites the measured pooled diagnostics of the second trial. It observed that selector_teacher_agreement fell from 0.4732 to 0.4643 and selector_greedy_accepted_length fell from 4.0 to 3.75, then proposed a smaller learning rate to preserve early-prefix teacher compatibility. The agent read the measured result and changed its next proposal accordingly.</p>
+
+<h2 id="results">2. Measured results so far</h2>
+<p>All trials share seed 42, the fixed teacher, and a matched baseline of 314.47 useful output tokens/s (released baseline: 315.12). Each trial trains 32 updates on the shared feature cache, exports, serves on one H200, and benchmarks 32 requests. Positive deltas are wins; every measured delta is negative so far.</p>
+<div class="scroll"><table>
+<thead><tr><th>Lane</th><th>Change</th><th class="num">Useful tok/s</th><th class="num">Δ vs baseline</th><th class="num">Acceptance length</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Baseline</td><td>Released checkpoint, rank 256, lr 3e-5, weight 0.1</td><td class="num">314.47</td><td class="num">0</td><td class="num">—</td><td>Matched control</td></tr>
+<tr><td>Architecture 1</td><td>selector_rank 256 → 384</td><td class="num">312.59</td><td class="num worse">−1.88</td><td class="num">4.388</td><td>Capacity hypothesis rejected at this budget</td></tr>
+<tr><td>Recipe 1</td><td>learning_rate 3e-5 → 1e-5</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td>In flight</td></tr>
+<tr><td>Recipe 2</td><td>selector_loss_weight 0.1 → 0.2</td><td class="num">303.93</td><td class="num worse">−10.54</td><td class="num">4.269</td><td>Stronger selector supervision hurt throughput</td></tr>
+<tr><td>Recipe 3</td><td>lr 3e-5 → 2e-5 (weight 0.2 kept)</td><td class="num">307.92</td><td class="num worse">−6.55</td><td class="num">4.312</td><td>Partially recovered from trial 2, still below baseline</td></tr>
+<tr><td>Recipe 4</td><td>In flight</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td>Running</td></tr>
+</tbody></table></div>
+<p class="note">Each result is a development screen with no paired confidence interval and no multi-seed confirmation. The journal is at <span class="mono">runs/aira-20261008/&lt;lane&gt;/checkpoint/journal.jsonl</span> on the node.</p>
+
+<h2 id="diagnostics">3. What the diagnostics show</h2>
+<p>The architecture trial supplies before/after pooled teacher-matching ratios. Rank 384 did not improve alignment; it made it slightly worse.</p>
+<div class="scroll"><table>
+<thead><tr><th>Pooled ratio</th><th class="num">Before (rank 256)</th><th class="num">After (rank 384)</th></tr></thead>
+<tbody>
+<tr><td>selector_teacher_agreement</td><td class="num">0.4732</td><td class="num worse">0.4554</td></tr>
+<tr><td>teacher_top1_agreement</td><td class="num">0.5000</td><td class="num worse">0.4732</td></tr>
+<tr><td>selector_greedy_accepted_length</td><td class="num">4.00</td><td class="num worse">3.75</td></tr>
+<tr><td>teacher_overlap</td><td class="num">0.5095</td><td class="num worse">0.4905</td></tr>
+<tr><td>selector_self_conditioned_accuracy</td><td class="num">0.4464</td><td class="num worse">0.4286</td></tr>
+</tbody></table></div>
+<p>Position bins show where agreement dies: selector_teacher_agreement falls from 0.94 at position 1 to 0.25 by position 7, in both ranks. The capacity bottleneck hypothesis predicted the opposite of what was measured. That is a useful negative result: within this 32-update budget, rank 384 does not pay for itself, and alignment decays with draft position regardless of rank.</p>
+
+<h2 id="hygiene">4. Integrity controls that held</h2>
+<ul>
+<li>The evaluator is immutable; fitness comes only from its stdout. The model cannot edit the verifier, teacher settings, or harness.</li>
+<li>Both lanes share one absolute wall deadline; the architecture lane is capped at 1 trial and the recipe lane at 4, per the original ceiling.</li>
+<li>Rank 512 stays excluded: its 6.67% parameter growth violates the 5% gate over the 1,924,404,480-parameter drafter.</li>
+<li>Initialization parity is verified per trial: logit_max_error 0.0 and probability_max_error 0.0 before training.</li>
+<li>Training prefixes are disjoint across trials; the feature cache manifest is hash-pinned (<span class="mono">c62c7a8f…</span>).</li>
+<li>The controller refuses to overwrite a work directory, so each lane keeps its own journal and checkpoint.</li>
+</ul>
+
+<h2 id="reading">5. How to read these numbers</h2>
+<p class="risk"><b>These are not wins.</b> Every measured candidate is below the matched baseline. The best journal candidate is a shortlist entry, not a verified improvement. Confirmation would need release and matched controls, isolated same-GPU A/B runs, randomized paired confidence intervals, and three seeds — outside this bounded screen.</p>
+<p>The negative results still carry information. The memo's proxy-fidelity warning applies directly: a training-side selector improvement did not transfer to served throughput, and the pooled diagnostics explained why after the fact. A short-budget screen that rejects three candidates cheaply has done its job.</p>
+
+<h2 id="software">6. Software and license</h2>
+<p>The integration lives in <span class="mono">dflash2_integration/</span>: <span class="mono">aira_runner.py</span> (native Greedy controller), <span class="mono">evaluate.py</span> (immutable evaluator), <span class="mono">llm_bridge.py</span> (loopback OMP bridge), <span class="mono">capture.py</span>, <span class="mono">benchmark.py</span>, and <span class="mono">job_registrar.py</span>. A clean <span class="mono">pip install -r dflash2_integration/aira/requirements.txt</span> was verified with the CLI help and <span class="mono">pip check</span>.</p>
+<p>The framework is <a href="https://creativecommons.org/licenses/by-nc/4.0/deed.en">CC BY-NC 4.0</a>. Research use is covered; commercial use needs separate permission.</p>
+</main></body></html>
