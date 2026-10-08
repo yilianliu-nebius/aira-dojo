@@ -10,7 +10,8 @@ import unittest
 from jsonschema import Draft202012Validator
 
 from dflash2_integration.aira_runner import ASSETS, candidate_from_code
-from dflash2_integration.evaluate import teacher_matching, validate_candidate, verify_protected
+from dflash2_integration.candidate import architecture_fingerprint, estimated_parameters, validate_candidate
+from dflash2_integration.evaluate import teacher_matching, verify_protected
 
 
 class CandidateContractTests(unittest.TestCase):
@@ -19,6 +20,7 @@ class CandidateContractTests(unittest.TestCase):
             "kind": "recipe", "hypothesis": "Improve teacher alignment",
             "predicted_metric": "Reduce selector error", "selector_rank": 256,
             "learning_rate": 0.00003, "selector_loss_weight": 0.1, "seed": 42,
+            "architecture": {"convolutions": [], "correctors": []},
         }
         self.schema = Draft202012Validator(json.loads((ASSETS / "candidate.schema.json").read_text()))
 
@@ -47,6 +49,7 @@ class CandidateContractTests(unittest.TestCase):
         cases = (
             {"kind": "architecture", "selector_rank": 384, "learning_rate": 0.0001},
             {"kind": "recipe", "selector_rank": 384},
+            {"kind": "architecture", "selector_rank": 384},
             {"kind": "architecture", "selector_rank": 512},
             {"kind": "architecture", "selector_rank": 320},
         )
@@ -57,6 +60,62 @@ class CandidateContractTests(unittest.TestCase):
     def test_optimizer_cannot_add_an_evaluator_control(self):
         with self.assertRaises(ValueError):
             validate_candidate({**self.candidate, "temperature": 0})
+
+    def test_composed_literal_preserves_the_physical_parameter_gate(self):
+        candidate = {
+            **self.candidate, "kind": "architecture",
+            "architecture": {
+                "convolutions": [{"layer": 2, "sublayer": "attention", "taps": [0, 1, 3], "group_size": 8}],
+                "correctors": [{"layer": 4, "rank": 32, "gated": True}],
+            },
+        }
+        parsed = candidate_from_code("candidate = " + repr(candidate), self.schema, "architecture")
+        self.assertEqual(estimated_parameters(parsed), 1944418560)
+        with self.assertRaises(ValueError):
+            validate_candidate({
+                **candidate, "selector_rank": 384,
+                "architecture": {
+                    "convolutions": [{"layer": 2, "sublayer": "attention", "taps": [0, 1, 7], "group_size": 8}],
+                    "correctors": candidate["architecture"]["correctors"],
+                },
+            })
+
+    def test_duplicate_placements_and_invalid_sparse_stencils_are_rejected(self):
+        entry = {"layer": 1, "sublayer": "mlp", "taps": [0, 1, 3], "group_size": 16}
+        plans = (
+            {"convolutions": [entry, entry], "correctors": []},
+            {"convolutions": [{**entry, "taps": [0, 3, 1]}], "correctors": []},
+            {"convolutions": [{**entry, "taps": [0, 1, 8]}], "correctors": []},
+            {"convolutions": [{**entry, "taps": [0, 1]}], "correctors": []},
+            {"convolutions": [], "correctors": [{"layer": 0, "rank": True, "gated": True}]},
+            {"convolutions": [], "correctors": [{"layer": 0, "rank": 32, "gated": "yes"}]},
+            {"convolutions": [], "correctors": [{"layer": 0, "rank": 32, "gated": False}] * 2},
+        )
+        for plan in plans:
+            with self.subTest(plan=plan), self.assertRaises(ValueError):
+                validate_candidate({**self.candidate, "kind": "architecture", "architecture": plan})
+
+    def test_graph_identity_ignores_prose_and_declaration_order(self):
+        first = validate_candidate({
+            **self.candidate, "kind": "architecture",
+            "architecture": {
+                "convolutions": [],
+                "correctors": [{"layer": 3, "rank": 64, "gated": False}, {"layer": 1, "rank": 32, "gated": True}],
+            },
+        })
+        second = validate_candidate({
+            **first, "hypothesis": "A different explanation", "predicted_metric": "A different prediction",
+            "architecture": {**first["architecture"], "correctors": list(reversed(first["architecture"]["correctors"]))},
+        })
+        self.assertEqual(architecture_fingerprint(first), architecture_fingerprint(second))
+        changed = validate_candidate({**first, "selector_rank": 384})
+        self.assertNotEqual(architecture_fingerprint(first), architecture_fingerprint(changed))
+
+    def test_unchanged_architecture_requires_an_explicit_control(self):
+        baseline = {**self.candidate, "kind": "architecture"}
+        with self.assertRaises(ValueError):
+            validate_candidate(baseline)
+        self.assertEqual(validate_candidate(baseline, allow_baseline=True), baseline)
 
     def test_changed_protected_artifact_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:

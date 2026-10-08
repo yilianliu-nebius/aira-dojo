@@ -5,5 +5,6 @@
   "selector_rank": 256,
   "learning_rate": 0.00003,
   "selector_loss_weight": 0.1,
-  "seed": 42
+  "seed": 42,
+  "architecture": {"convolutions": [], "correctors": []}
 }

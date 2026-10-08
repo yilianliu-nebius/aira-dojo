@@ -159,7 +159,7 @@ class NodeHandler(BaseHTTPRequestHandler):
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", required=True, type=Path)
-    parser.add_argument("--port", type=int, default=18767)
+    parser.add_argument("--port", type=int, default=18768)
     parser.add_argument("--timeout-seconds", type=float, default=600)
     args = parser.parse_args()
     args.root = args.root.expanduser().resolve()

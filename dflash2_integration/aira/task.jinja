@@ -1,56 +1,92 @@
 Task: bounded DFlash2 {{ kind }} research.
+The candidate kind MUST be "{{ kind }}". This lane accepts only that kind.
 
-Optimize the draft model incoai/Qwen3.8-27B-DFlash2 for the fixed teacher Qwen/Qwen3.8-27B.
-The primary metric is useful_output_tokens_per_second from the immutable evaluator.
-The teacher stays FP8 with tensor parallel size 1. Its precision and settings are fixed.
-Acceptance length is a secondary diagnostic. Do not optimize generic language-model loss as the final objective.
-State a teacher-matching hypothesis: explain how the selector or recipe change improves accepted draft tokens and useful output throughput.
-Use predicted_metric to state the predicted direction and tradeoff for useful_output_tokens_per_second and acceptance_length.
-Use the evaluator's numeric teacher_matching aggregates and position diagnostics when the journal supplies them.
-Only declared before/after pooled_ratios metrics and position_bins are public.
-The evaluator pools each ratio as sum(numerator)/sum(denominator) across the development conversations.
-Each position metric has at most seven finite aggregate bins. Numeric IDs are not diagnostic metrics.
-Unavailable or zero-denominator metrics are absent. Do not invent zero values for them.
-Do not invent absent diagnostics. Do not request raw cache arrays, hidden prompts, record IDs, or diagnostic file paths.
-Only useful_output_tokens_per_second sets search fitness; teacher-matching diagnostics explain the result without a score override.
-The native overlap diagnostic uses full-vocabulary probabilities before production top-p/top-k filters.
-It is not the stock verifier acceptance probability. Use measured serving throughput as fitness.
+Optimize incoai/Qwen3.8-27B-DFlash2 for the fixed teacher Qwen/Qwen3.8-27B.
+The teacher stays FP8 with tensor parallel size one. The sampler, verifier, and serving kernels stay fixed.
+The primary fitness field is useful_output_tokens_per_second.
+Despite its legacy name, this field measures total valid output tokens/s, including requests that reach the token cap.
+The nested benchmark field with that name measures the EOS-only rate. It does not set search fitness.
+Acceptance length is secondary. A better offline loss is not a serving improvement.
+State a teacher-matching hypothesis and the predicted acceptance-versus-compute tradeoff.
 
+{% if kind == "architecture" %}
+Research focus: {{ architecture_focus }}.
+{% if architecture_focus == "local_mixing" %}
+Explore where local token interactions lose teacher information. Choose layer placements, sparse multiscale stencils, and group sizes from that hypothesis.
+{% elif architecture_focus == "nonlinear_correction" %}
+Explore where a low-rank nonlinear residual correction can repair teacher disagreement. Choose the layers, ranks, and gates from that hypothesis.
+{% elif architecture_focus == "efficiency" %}
+Explore the smallest architectural change that improves accepted output per unit of inference time. Extra parameters are not an objective.
+{% else %}
+Explore complementary changes that repair different error sources. Compose local stencils, finer groups, residual correctors, and selector capacity where justified.
+{% endif %}
+The focus is a research question, not a prescribed proposal sequence. Every architecture component remains available in each lane.
 
-This task uses the existing AIRA-dojo Greedy research framework. It does not establish a novel or state-of-the-art drafter.
-Only measured evaluator results support performance claims. Do not invent trial results, baselines, or novelty claims.
-Every research result is a development screen. The best journal candidate is a shortlist entry, not a verified winner.
-Even a matched baseline does not establish a verified improvement.
-Final confirmation requires release and matched controls, isolated same-GPU A/B runs, randomized paired confidence intervals, and three seeds.
-The proposal seed remains 42; the confirmation protocol is outside this bounded search.
+The five draft layers have indices zero through four. The hidden size is 5120 and the vocabulary size is 248320.
+The baseline uses selector_rank=256, two convolution taps [0,1], group_size=16, and no correctors.
+The architecture object contains exactly convolutions and correctors lists.
+A convolution record selects one layer and either the attention or mlp sublayer.
+Its taps are sorted unique positions from zero through seven and include zero and one.
+Its group_size is eight or sixteen. The physical tap allocation is max(taps)+1, including excluded zero slots.
+The new tap coefficients start at zero. Finer groups retain the learned coarse coefficients.
+Excluded taps remain zero during training and serving. Do not count excluded slots as free parameters.
+A corrector record selects one layer, a rank from 32/64/128/256, and a Boolean gated value.
+It adds up(SiLU(down(h))*sigmoid(gate(h))) when gated, or up(SiLU(down(h))) otherwise.
+The down and up projections have no bias. The optional gate projects the complete hidden state to one scalar.
+The up projection and optional gate weights start at zero. The initial sigmoid is 0.5, not a saturated random gate.
+Native gradient and strict checkpoint gates must pass.
+Use at most one convolution per layer/sublayer and one corrector per layer. Do not declare unchanged convolutions.
+
+Choose selector_rank=256 or 384. Rank expansion is optional, not the sole architecture change.
+Require at least one convolution or corrector. Do not repeat the completed rank-only screen.
+Keep learning_rate=0.00003, selector_loss_weight=0.1, and seed=42.
+The released draft has 1,924,404,480 actual parameters. Total growth cannot exceed five percent of that count.
+Rank 384 adds 64,225,280 parameters. Count this growth together with every other component.
+A corrector adds 2*5120*rank parameters, plus 5120 for a gate.
+A convolution with K physical taps and G=5120/group_size has 2*K*5120 + 2*K*G*5120 parameters.
+Subtract the replaced two-tap, group-16 convolution count. The CPU estimate must match the native physical count.
+Inherited coefficients use the original 1280-row GEMM shape. Extra taps use a separate projection.
+Finer groups use independent inherited projections, then interleave the coefficients. Account for these extra GEMM launches in your compute tradeoff.
+The evaluator rejects duplicate graphs/recipes across lanes, unchanged baselines, and compositions above the parameter bound.
+The earlier rank-384-only screen scored 312.588131 output tokens/s, below the released control at 315.12305.
+That result does not prescribe another rank expansion. Seek a different teacher-matching mechanism.
+
+Completed manual integration pilots used the matched recipe and the same 32-prompt development screen:
+- Rank256; ungated rank64 correctors at layers0/2/4: 312.139040 output tokens/s, acceptance4.392315.
+- Rank256; gated rank64 correctors at layers1/3/4: 303.333191 output tokens/s, acceptance4.291440.
+- Rank384; ungated rank32 corrector at layer4: 314.979327 output tokens/s, acceptance4.423662.
+- Rank256; attention layer1 taps[0,1,3,7] and MLP layer3 taps[0,1,2,3], group16: 307.253933 output tokens/s, acceptance4.315992.
+- Rank256; attention layer2 taps[0,1,3], group8, plus gated rank32 corrector at layer4: 307.027314 output tokens/s, acceptance4.338376.
+These graphs are already claimed. Do not repeat them with different prose.
+The new-loader matched control measured305.861489 output tokens/s. The historical released control measured315.123054.
+The screens use different GPUs and stochastic output. No isolated paired confidence interval or verified gain exists.
+Use these results to choose a new mechanism or placement, not to claim a winner.
+{% else %}
+Keep selector_rank=256 and architecture={"convolutions": [], "correctors": []}.
+Change learning_rate and/or selector_loss_weight within the public schema. Keep seed=42.
+Do not combine recipe and architecture mutations.
+{% endif %}
+
+Each native AIRA-dojo Greedy lane has four proposal attempts. Native journal feedback guides the next proposal.
+Each valid trial starts from the same released weights and frozen cache. It receives 32 updates or 300 measured seconds.
+The cache contains eight training and two disjoint development prefixes. This is not full training.
+Use only declared numeric teacher_matching aggregates: before/after pooled_ratios and at most seven position bins.
+Ratios pool sum(numerator)/sum(denominator) across development conversations. Absent denominators produce no metric.
+The native overlap uses full-vocabulary probabilities before production top-p/top-k. It is not the stock verifier acceptance probability.
+Do not invent missing diagnostics, results, novelty, gains, or data. Do not request raw arrays or hidden prompts.
+Only measured serving throughput sets fitness. The best journal node is a shortlist entry, not a verified winner.
+Final confirmation requires isolated same-GPU release and matched controls, paired confidence intervals, and three seeds.
 
 Verified baseline aggregate context:
 {{ baseline_context }}
 
-The baseline spec has selector_rank=256, learning_rate=0.00003, selector_loss_weight=0.1, and seed=42.
-For the architecture lane, change selector_rank only. Keep the baseline learning rate and selector loss weight.
-The architecture lane permits only expanded rank 384. It uses a release warm start with initialization parity.
-The existing matched control uses rank 256. Do not propose that control again in the architecture lane.
-The release drafter has 1,924,404,480 actual parameters.
-The growth limit is 5% of that actual drafter count, not 5% of the target model size.
-Rank 384 increases the actual count by 3.337408%.
-Rank 512 remains in the protected rank list, but its 6.674816% growth violates the original 5% gate.
-Do not propose rank 512. The protected rank list does not grant an exception to the growth gate.
-The initial architecture lane has one trial. Propose the supported rank 384 with your own teacher-matching hypothesis.
-The original ceiling remains four trials per lane. It does not require four duplicate architecture trials.
-For the recipe lane, keep selector_rank=256. Change learning_rate and/or selector_loss_weight within the public schema.
-Keep seed=42 in both lanes. Do not combine architecture and recipe mutations in one candidate.
-Choose proposals from your hypothesis and journal evidence. The baseline reference does not prescribe a proposal sequence.
-
 Public candidate schema:
 {{ candidate_schema }}
 
-Return a short plan, then exactly one fenced Python block.
-Put exactly one `candidate = {...}` assignment in that block.
-Supply every required field with your actual proposed values.
-The candidate dictionary must contain only JSON-compatible literal values.
-The adapter parses this assignment without execution. It rejects unknown fields and unauthorized values.
-Do not return executable code, imports, functions, commands, file paths, additional assignments, or proposed edits.
-Do not access or change the scorer, teacher settings, hidden data, verifier, reference code, reference configs, or reference checkpoints.
+Return a short plan, then exactly one fenced Python block with one candidate = {...} assignment.
+Supply all required fields as JSON-compatible Python literals. Use True and False for Boolean values.
+The adapter parses the literal without execution. It rejects unknown fields, duplicate keys, and unauthorized values.
+Do not return imports, functions, calls, file paths, extra assignments, or edits.
 The model has no tools. The immutable evaluator owns training, serving, hidden data, validity, and fitness.
-Only candidate parameters and the public hypothesis are in the proposal scope.
+Do not change the scorer, teacher, verifier, reference code, configs, checkpoints, or data.
+This uses the existing AIRA-dojo Greedy framework under CC BY-NC 4.0. It makes no novelty claim.

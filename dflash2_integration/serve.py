@@ -1,4 +1,4 @@
-"""Launch the pinned stock SGLang engine on the assigned baseline GPU."""
+"""Launch the pinned stock SGLang engine with the trusted draft extension."""
 
 from __future__ import annotations
 
@@ -13,13 +13,16 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-ROOT = Path("/home/ubuntu/dflash2-autoresearch-20261007")
+ROOT = Path(os.environ.get("DFLASH2_ROOT", "/home/ubuntu/dflash2-autoresearch-20261008-architecture")).resolve()
 IMAGE = "sha256:6b454775d5e28e8a16d890fa9f3d7b4f442f41c78ed16fd1551c428cc1ccf80c"
 ENGINE_COMMIT = "5f55db35e926d50676f75b812640ea2410b0fe0e"
 DRAFT_REVISION = "015e795645c74b1a0eeef3b570031fb62e769bc5"
-DRAFT = ROOT / "artifacts" / f"released-{DRAFT_REVISION}"
+DRAFT = (ROOT / "artifacts" / f"released-{DRAFT_REVISION}").resolve()
 TARGET = Path("/home/ubuntu/models/Qwen3.8-27B-FP8")
 PREFIX = "aira-dflash2-"
+INTEGRATION = Path(__file__).resolve().parent
+SERVING_PLUGIN = "dflash2_integration.serving_model"
+EXTERNAL_MODEL_PACKAGE = "dflash2_integration.serving_models"
 
 
 def docker(*args: str) -> str:
@@ -77,8 +80,9 @@ def start(args: argparse.Namespace) -> dict:
         raise ValueError(f"New remote artifacts must stay under {ROOT}.")
     draft = args.draft.resolve()
     if not args.target_only:
-        if not draft.is_relative_to(root):
-            raise ValueError("The draft must be under the experiment root.")
+        allowed_draft_roots = (root, (root / "artifacts").resolve(), (root / "controls").resolve())
+        if not any(draft.is_relative_to(directory) for directory in allowed_draft_roots):
+            raise ValueError("The draft must be under the experiment root or a pinned read-only control root.")
         config = json.loads((draft / "config.json").read_text())
         if config.get("architectures") != ["DFlash2DraftModel"]:
             raise ValueError("The draft must use DFlash2DraftModel.")
@@ -86,8 +90,8 @@ def start(args: argparse.Namespace) -> dict:
     if bridge:
         parsed = urllib.parse.urlparse(bridge)
         if (parsed.scheme != "http" or parsed.hostname not in ("127.0.0.1", "localhost", "::1")
-                or parsed.port != 18767 or parsed.path != "/jobs" or parsed.query or parsed.fragment):
-            raise ValueError("The job bridge must use loopback HTTP port 18767 and the /jobs path.")
+                or parsed.port != 18768 or parsed.path != "/jobs" or parsed.query or parsed.fragment):
+            raise ValueError("The job bridge must use loopback HTTP port 18768 and the /jobs path.")
     output = args.output.resolve() if args.output else None
     if output and not output.is_relative_to(root):
         raise ValueError("The launch report must be under the experiment root.")
@@ -109,7 +113,12 @@ def start(args: argparse.Namespace) -> dict:
     if args.name.startswith(PREFIX + "trial") and output:
         command += ["--label", f"aira.trial_dir={output.parent}"]
     if not args.target_only:
-        command += ["-v", f"{draft}:/draft:ro"]
+        command += [
+            "-v", f"{draft}:/draft:ro",
+            "-v", f"{INTEGRATION}:/integration/dflash2_integration:ro",
+            "-e", "PYTHONPATH=/integration",
+            "-e", f"SGLANG_EXTERNAL_MODEL_PACKAGE={EXTERNAL_MODEL_PACKAGE}",
+        ]
     engine = engine_arguments(args)
     command += [IMAGE, *engine[1:]]
     container_id = docker(*command)
@@ -122,6 +131,9 @@ def start(args: argparse.Namespace) -> dict:
         "draft_path": None if args.target_only else str(draft),
         "target_path": str(args.target.resolve()), "target_only": args.target_only,
         "engine_arguments": engine,
+        "serving_plugin": None if args.target_only else SERVING_PLUGIN,
+        "external_model_package": None if args.target_only else EXTERNAL_MODEL_PACKAGE,
+        "integration_path": None if args.target_only else str(INTEGRATION),
     }
     (cache / "launch.json").write_text(json.dumps(record, indent=2) + "\n")
     print(json.dumps(record), flush=True)

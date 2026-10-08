@@ -33,6 +33,8 @@ from urllib.request import Request, build_opener, ProxyHandler
 from jinja2 import Environment, StrictUndefined
 from jsonschema import Draft202012Validator, ValidationError
 
+from dflash2_integration.candidate import validate_candidate
+
 # Upstream config imports require this nonsecret setting even for --help.
 # Preserve the deployment's explicit value. This does not create a directory.
 os.environ.setdefault("LOGGING_DIR", "/tmp/aira-dflash2-logs")
@@ -190,7 +192,7 @@ def candidate_from_code(code: str, validator: Draft202012Validator, kind: str) -
     validator.validate(candidate)
     if candidate.get("kind") != kind:
         raise ValueError(f"This research run accepts only {kind} candidates")
-    return candidate
+    return validate_candidate(candidate)
 
 
 class BridgeLLM:
@@ -384,12 +386,14 @@ class DFlashGreedy(Greedy):
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--kind", required=True, choices=("architecture", "recipe"))
+    parser.add_argument("--architecture-focus", default="composition",
+                        choices=("local_mixing", "nonlinear_correction", "composition", "efficiency"))
     parser.add_argument("--work-dir", required=True, type=Path, help="A new directory for this research lane")
     parser.add_argument("--evaluator-command", default=f"{shlex.quote(sys.executable)} -m dflash2_integration.evaluate")
-    parser.add_argument("--max-trials", type=int, help="Default: architecture 1, recipe 4; original ceiling: 4")
+    parser.add_argument("--max-trials", type=int, help="Default and ceiling: four attempts per lane")
     parser.add_argument("--max-hours", type=float, default=24)
     parser.add_argument("--deadline-unix", type=float, help="Shared absolute deadline for separate research lanes")
-    parser.add_argument("--bridge-url", default="http://127.0.0.1:18767/v1/chat/completions")
+    parser.add_argument("--bridge-url", default="http://127.0.0.1:18768/v1/chat/completions")
     parser.add_argument("--evaluation-timeout-seconds", type=float, default=14400)
     parser.add_argument("--llm-timeout-seconds", type=float, default=600)
     parser.add_argument("--search-config", type=Path, default=ASSETS / "search.json")
@@ -397,9 +401,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--baseline-result", type=Path, help="An operator-verified aggregate baseline result")
     args = parser.parse_args()
     if args.max_trials is None:
-        args.max_trials = 1 if args.kind == "architecture" else 4
+        args.max_trials = 4
     if not 1 <= args.max_trials <= 4:
-        parser.error("The original trial ceiling permits 1 through 4 trials per lane")
+        parser.error("The protected trial ceiling permits 1 through 4 attempts per lane")
     for name in ("max_hours", "evaluation_timeout_seconds", "llm_timeout_seconds"):
         value = getattr(args, name)
         if not math.isfinite(value) or value <= 0:
@@ -443,7 +447,7 @@ def main() -> None:
         max_llm_call_retries=settings["max_llm_call_retries"], available_packages=[], operators={},
         execution_timeout=int(args.evaluation_timeout_seconds), time_limit_secs=max(1, int(budget.remaining())),
         data_preview=False, use_complexity=False, use_test_score=False, export_search_results=False,
-        exp_name="dflash2-" + args.kind, checkpoint_path=str(work_dir / "checkpoint"),
+        exp_name="dflash2-" + args.kind + "-" + args.architecture_focus, checkpoint_path=str(work_dir / "checkpoint"),
         memory=memory, debug_memory=memory,
     )
     baseline = None
@@ -458,14 +462,18 @@ def main() -> None:
             "status": "valid", "useful_output_tokens_per_second": rate,
             "comparison": public_comparison(baseline_result.get("comparison")),
         }
+        diagnostics = public_teacher_matching(baseline_result.get("teacher_matching"))
+        if diagnostics is not None:
+            baseline["teacher_matching"] = diagnostics
         write_json(work_dir / "baseline_result.json", baseline)
     task_description = (ASSETS / "task.jinja").read_text(encoding="utf-8")
     task_description = Environment(undefined=StrictUndefined).from_string(task_description).render(
-        kind=args.kind, candidate_schema=schema_text,
+        kind=args.kind, architecture_focus=args.architecture_focus, candidate_schema=schema_text,
         baseline_context=json.dumps(baseline, allow_nan=False) if baseline else "No verified aggregate baseline result was supplied.",
     )
     manifest = {
-        "kind": args.kind, "max_trials": args.max_trials, "max_hours": args.max_hours,
+        "kind": args.kind, "architecture_focus": args.architecture_focus,
+        "max_trials": args.max_trials, "max_hours": args.max_hours,
         "deadline_unix": args.deadline_unix,
         "bridge_url": args.bridge_url, "evaluator_command": args.evaluator_command,
         "model": MODEL, "schema_sha256": hashlib.sha256(schema_text.encode()).hexdigest(),

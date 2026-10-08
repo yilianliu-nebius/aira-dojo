@@ -14,8 +14,9 @@ import subprocess
 import sys
 import time
 
-ROOT = Path(os.environ.get("DFLASH2_ROOT", "/home/ubuntu/dflash2-autoresearch-20261007"))
-FIELDS = {"kind", "hypothesis", "predicted_metric", "selector_rank", "learning_rate", "selector_loss_weight", "seed"}
+from dflash2_integration.candidate import architecture_fingerprint, validate_candidate
+
+ROOT = Path(os.environ.get("DFLASH2_ROOT", "/home/ubuntu/dflash2-autoresearch-20261008-architecture"))
 DIAGNOSTIC_RATIOS = {
     "token_accuracy": "acc",
     "token_ce_loss": "ce_loss",
@@ -38,30 +39,6 @@ POSITION_RATIOS = ("teacher_overlap", "teacher_top1_agreement", "teacher_top16_m
                    "selector_covered_accuracy", "selector_teacher_agreement", "selector_loss")
 
 
-def validate_candidate(value: object) -> dict:
-    if not isinstance(value, dict) or set(value) != FIELDS:
-        raise ValueError(f"Candidate must have exactly these fields: {sorted(FIELDS)}")
-    if value["kind"] not in {"architecture", "recipe"}:
-        raise ValueError("kind must be architecture or recipe")
-    for name in ("hypothesis", "predicted_metric"):
-        if not isinstance(value[name], str) or not 1 <= len(value[name]) <= 4096:
-            raise ValueError(f"{name} must be a nonempty bounded string")
-    if type(value["selector_rank"]) is not int or value["selector_rank"] not in (256, 384, 512):
-        raise ValueError("selector_rank must be 256, 384, or 512")
-    if type(value["seed"]) is not int or value["seed"] != 42:
-        raise ValueError("The initial paired screen fixes seed=42")
-    for name, low, high in (("learning_rate", 1e-5, 1e-4), ("selector_loss_weight", 0.1, 1.0)):
-        number = value[name]
-        if type(number) not in (int, float) or not math.isfinite(number) or not low <= number <= high:
-            raise ValueError(f"{name} is outside its declared range")
-    if value["kind"] == "architecture":
-        if value["selector_rank"] != 384:
-            raise ValueError("Only rank384 is a new architecture within the five-percent growth gate")
-        if value["learning_rate"] != 3e-5 or value["selector_loss_weight"] != 0.1:
-            raise ValueError("Architecture arms must keep the matched training recipe")
-    elif value["selector_rank"] != 256:
-        raise ValueError("Recipe arms must keep the released architecture")
-    return value
 
 
 def read_json(path: Path) -> dict:
@@ -197,6 +174,14 @@ def evaluate(candidate_path: Path, output_dir: Path) -> dict:
     manifest = read_json(ROOT / "protected" / "manifest.json")
     verify_protected(manifest)
     save_json(output_dir / "candidate.json", candidate)
+    fingerprint = architecture_fingerprint(candidate)
+    claims = ROOT / "claims"
+    claims.mkdir(exist_ok=True)
+    try:
+        with (claims / f"{fingerprint}.json").open("x") as receipt:
+            json.dump({"trial_dir": str(output_dir), "candidate": candidate}, receipt, sort_keys=True, allow_nan=False)
+    except FileExistsError as error:
+        raise ValueError("This architecture/recipe has already been assigned to a trial") from error
     save_json(output_dir / "policy.json", policy)
     result = {"status": "invalid", "useful_output_tokens_per_second": None, "acceptance_length": None,
               "candidate": candidate, "artifacts": {"trial_dir": str(output_dir)}}
@@ -220,6 +205,12 @@ def evaluate(candidate_path: Path, output_dir: Path) -> dict:
             raise RuntimeError("Export is not DFlash2DraftModel")
         if config.get("dflash_config", {}).get("selector_rank") != candidate["selector_rank"]:
             raise RuntimeError("Export selector rank differs from the candidate")
+        if config.get("research_architecture") != candidate["architecture"]:
+            raise RuntimeError("Export architecture differs from the candidate")
+        if config.get("research_serving_plugin") != "dflash2_integration.serving_model":
+            raise RuntimeError("Export does not name the trusted research serving plugin")
+        if config.get("research_requires_trusted_serving_plugin") is not True:
+            raise RuntimeError("Export does not require the trusted research serving plugin")
         result["training"] = trained
         result["teacher_matching"] = teacher_matching(trained, train_dir)
         name = "aira-dflash2-trial-" + hashlib.sha256(str(output_dir.resolve()).encode()).hexdigest()[:12]
