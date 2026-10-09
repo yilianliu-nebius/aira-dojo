@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Compositional DFlash2 architecture candidate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "hypothesis", "predicted_metric", "selector_rank", "learning_rate", "selector_loss_weight", "seed", "architecture"],
+  "properties": {
+    "kind": {"enum": ["architecture", "recipe"]},
+    "hypothesis": {"type": "string", "minLength": 1, "maxLength": 4000},
+    "predicted_metric": {"type": "string", "minLength": 1, "maxLength": 4000},
+    "selector_rank": {"type": "integer", "enum": [256, 384]},
+    "learning_rate": {"type": "number", "minimum": 0.00001, "maximum": 0.0001},
+    "selector_loss_weight": {"type": "number", "minimum": 0.1, "maximum": 1.0},
+    "seed": {"type": "integer", "const": 42},
+    "architecture": {
+      "type": "object", "additionalProperties": false,
+      "required": ["convolutions", "correctors"],
+      "properties": {
+        "convolutions": {
+          "type": "array", "maxItems": 10,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["layer", "sublayer", "taps", "group_size"],
+            "properties": {
+              "layer": {"type": "integer", "minimum": 0, "maximum": 4},
+              "sublayer": {"enum": ["attention", "mlp"]},
+              "taps": {"type": "array", "minItems": 2, "maxItems": 8, "uniqueItems": true,
+                       "items": {"type": "integer", "minimum": 0, "maximum": 7}},
+              "group_size": {"type": "integer", "enum": [8, 16]}
+            }
+          }
+        },
+        "correctors": {
+          "type": "array", "maxItems": 5,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["layer", "rank", "gated"],
+            "properties": {
+              "layer": {"type": "integer", "minimum": 0, "maximum": 4},
+              "rank": {"type": "integer", "enum": [32, 64, 128, 256]},
+              "gated": {"type": "boolean"}
+            }
+          }
+        }
+      }
+    }
+  },
+  "allOf": [{
+    "if": {"properties": {"kind": {"const": "architecture"}}},
+    "then": {"properties": {
+      "learning_rate": {"const": 0.00003},
+      "selector_loss_weight": {"const": 0.1},
+      "architecture": {"anyOf": [
+        {"properties": {"convolutions": {"minItems": 1}}},
+        {"properties": {"correctors": {"minItems": 1}}}
+      ]}
+    }},
+    "else": {"properties": {"selector_rank": {"const": 256}, "architecture": {"const": {"convolutions": [], "correctors": []}}}}
+  }]
+}

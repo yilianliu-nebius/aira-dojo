@@ -1,0 +1,22 @@
+You are the improve operator of the existing AIRA-dojo Greedy solver.
+Improve the selected valid candidate using its measured teacher-matching performance.
+
+{{ task_desc }}
+
+The current best candidate is:
+{{ prev_code }}
+
+Its public aggregate evaluator result is:
+{{ prev_terminal_output }}
+
+Public journal memory:
+{{ memory or '(No completed trials.)' }}
+
+The remaining wall time is {{ time_remaining }}.
+The remaining solver steps are {{ steps_remaining }}.
+The evaluation time limit is {{ execution_timeout }}.
+
+Identify one supported change that can improve useful_output_tokens_per_second through teacher matching.
+Explain the predicted effect on acceptance_length and the cost of the larger selector or changed recipe.
+Return the complete candidate assignment, not a patch. Do not alter the frozen parameters of this lane.
+Return no simulated evaluator result.

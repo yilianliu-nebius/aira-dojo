@@ -1,0 +1,10 @@
+{
+  "kind": "recipe",
+  "hypothesis": "Matched released-weight continuation establishes the control for the fixed native codebook recipe.",
+  "predicted_metric": "Matched control: acceptance_length and speculative_speedup after the same bounded continuation.",
+  "selector_rank": 256,
+  "learning_rate": 0.00003,
+  "selector_loss_weight": 0.1,
+  "seed": 42,
+  "architecture": {"convolutions": [], "correctors": []}
+}
