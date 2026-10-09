@@ -34,7 +34,7 @@ code,pre{font:13px/1.6 ui-monospace,Menlo,monospace}code{background:#f4f4f4;padd
 <li>The recipe stays at LR 3e-5, selector loss weight 0.1, and seed 42. Teacher, sampler, verifier, cache, and budgets stay fixed.</li>
 </ul>
 <p>The model receives four research questions: local token interactions, nonlinear correction, complementary compositions, and inference efficiency. These questions do not prescribe a parameter sequence.</p>
-<p id="live-status">At 20:06 UTC, four detached continuation supervisors were active. Each first new graph completed 32 real optimizer updates. Four trial servers were active.</p>
+<p id="live-status">At 04:41 UTC on October9, the node-local model service and all four native search services were active. Four real proposals succeeded with both laptop services stopped.</p>
 <p>Read the <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/reports/search-launch.json">launch contract</a>, <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/protected/policy.json">versioned policy</a>, and <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/runs/aira-architecture-20261008">native lane records</a>. The shared deadline is epoch <code>1791569465.625282</code>.</p>
 <p>The first wave completed 16 proposal attempts. Its original deadline remains unchanged. The table below records the first-wave launches, not current process IDs.</p>
 <div class="scroll"><table><thead><tr><th>Native focus</th><th>Original PID</th><th>First GPU</th><th>Actual model proposal</th><th>Updates</th><th>Evidence</th></tr></thead><tbody>
@@ -56,10 +56,10 @@ code,pre{font:13px/1.6 ui-monospace,Menlo,monospace}code{background:#f4f4f4;padd
 <p>The best graph uses attention0 taps[0,1,2,4] with group16. It exceeds the historical released screen by 2.42 tokens/s, without paired or multi-seed confirmation.</p>
 <p>Read the <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/reports/completed-first-wave.json">first-wave aggregate evidence</a> and <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/reports/completed-first-wave-public-context.json">public graph context</a>.</p>
 <h3>Continuous native journal continuation</h3>
-<p>The user authorized continued search after the first wave reached its attempt limit. Four supervisors now run successive batches of at most four new attempts.</p>
+<p>The October8 continuation used four supervisors and batches of at most four new attempts. All four later stopped during proposal requests.</p>
 <p>Each supervisor restores the full native journal with <code>DFlashGreedy.load_checkpoint()</code> and calls the unchanged native <code>step()</code>. Every original node remains in the journal.</p>
 <p>The original deadline remains <b>2026-10-09 18:11:05 UTC</b>. A batch boundary no longer stops useful search. The protected source, policy, evaluator, and trial limits remain unchanged.</p>
-<div class="scroll"><table><thead><tr><th>Focus</th><th>Current supervisor PID</th><th>First continuation GPU</th><th>First new graph</th><th>Actual updates</th></tr></thead><tbody>
+<div class="scroll"><table><thead><tr><th>Focus</th><th>Previous supervisor PID</th><th>First continuation GPU</th><th>First new graph</th><th>Actual updates</th></tr></thead><tbody>
 <tr><td>Local interactions</td><td>3044130</td><td>3</td><td>Attention0 taps[0,1,4], group16</td><td>32</td></tr>
 <tr><td>Nonlinear correction</td><td>3044471</td><td>6</td><td>Ungated rank64 corrector at layer2</td><td>32</td></tr>
 <tr><td>Composition</td><td>3044134</td><td>4</td><td>Attention1 taps[0,1,2], group8; ungated rank64 corrector3</td><td>32</td></tr>
@@ -73,8 +73,25 @@ code,pre{font:13px/1.6 ui-monospace,Menlo,monospace}code{background:#f4f4f4;padd
 <li>Each proposal receives the globally claimed graph list. The unchanged evaluator still rejects duplicates.</li>
 <li>Create <code>runs/continuation-20261008/STOP</code> under the experiment root to stop all lanes before their next proposal.</li>
 <li>Send SIGTERM to a supervisor PID to cancel its current trial through native evaluator cleanup.</li>
-<li>The local relay is PID22069. New model proposals require this laptop, its model bridge, and network access to remain available.</li>
+<li>The former laptop relay and model bridge stopped cleanly on October9. Separate node-side authentication replaces that dependency.</li>
 </ul>
+<h3>Node-local autonomous research</h3>
+<p>AIRA-dojo remains the research controller. OMP 18.6.1 supplies the no-tools model connection to <code>openai-codex/gpt-6.1-sol</code> with high reasoning.</p>
+<p>The separate Codex login stores credentials only on the node, with access restricted to its account. No laptop credential database was copied.</p>
+<p>The latest native journals contain 8, 7, 8, and 8 nodes for local interactions, nonlinear correction, composition, and efficiency. All 11 continuation trials were valid.</p>
+<p>Each failed next proposal left no uncommitted trial directory. New services restore those latest journals into new directories without a repeated trial.</p>
+<p>Operational files live in <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/runs/node-autonomous-20261009"><code>runs/node-autonomous-20261009</code></a>. The original deadline and all evaluator limits remain unchanged.</p>
+<p><code>aira-node-model.service</code> runs as <code>ubuntu</code>, with at most two concurrent model requests. The durable node queue stores requests and responses.</p>
+<p>The service returned four real proposals with zero model errors. Every first trial completed 32 real updates after both laptop services exited successfully.</p>
+<p>Check the services from any SSH client:</p>
+<pre>ssh autoresearch-h200 'systemctl --no-pager status aira-node-model.service aira-native-search@local_mixing.service aira-native-search@nonlinear_correction.service aira-native-search@composition.service aira-native-search@efficiency.service'</pre>
+<p>Current search PIDs are 3683613, 3682681, 3682896, and 3682609 for local interactions, nonlinear correction, composition, and efficiency.</p>
+<p>Their first trials used GPUs6, 4, 5, and 3. Read the <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/runs/node-autonomous-20261009/search/first-native-update-proof.json">four-lane native update proof</a>.</p>
+<p>Read the <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/runs/node-autonomous-20261009/service-health.json">model service health</a> and <a href="ssh://autoresearch-h200/home/ubuntu/dflash2-autoresearch-20261008-architecture/runs/node-autonomous-20261009/node-model-smoke-evidence.json">laptop-independent proposal evidence</a>.</p>
+<p>Stop all search lanes through their units. Native evaluator cleanup handles the current trial:</p>
+<pre>ssh autoresearch-h200 'sudo systemctl stop aira-native-search@local_mixing.service aira-native-search@nonlinear_correction.service aira-native-search@composition.service aira-native-search@efficiency.service'</pre>
+<p>The node no longer needs an open laptop or SSH session. Automatic resume after a node reboot is not configured.</p>
+<p>The loopback HTTP bridge remains a detached node process. The model service has systemd supervision; search services do not blindly restart failed trials.</p>
 <h3>Two smoke failures produced permanent fixes</h3>
 <p>A random early-layer gate received logits from −2128 to −1096. Every sigmoid output was zero, so all three corrector gradients stayed zero.</p>
 <p>The gate now starts at zero. The corrected pilot produced nonzero down, up, and gate gradients in all three layers.</p>
